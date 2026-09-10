@@ -6,7 +6,7 @@ ARG NIX_VERSION=2.34.1
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    bash bash-completion bubblewrap build-essential bzip2 ca-certificates curl \
+    bash bash-completion bubblewrap build-essential bzip2 ca-certificates curl direnv \
     git gnupg iproute2 jq less locales man-db openssh-client procps ripgrep \
     sudo tmux unzip wget xz-utils zip \
     && rm -rf /var/lib/apt/lists/* \
@@ -38,6 +38,8 @@ RUN case "$TARGETARCH" in \
 
 COPY nix.conf /etc/nix/nix.conf
 COPY nix-profile.sh /etc/profile.d/nix.sh
+COPY shell/bashrc /etc/coder/bashrc
+RUN echo '. /etc/coder/bashrc' >> /etc/bash.bashrc
 ENV USER=coder \
     HOME=/home/coder \
     LANG=en_US.UTF-8 \
@@ -45,7 +47,7 @@ ENV USER=coder \
     NIX_REMOTE=local \
     NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
-    PATH=/home/coder/.nix-profile/bin:/home/coder/.local/state/nix/profile/bin:/opt/nix/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    PATH=/home/coder/.local/bin:/home/coder/.nix-profile/bin:/home/coder/.local/state/nix/profile/bin:/opt/nix/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Coder replaces the entrypoint with its agent bootstrap. No daemon or
 # entrypoint initialization is needed, including with an empty mounted home.

@@ -2,3 +2,5 @@
 !Dockerfile
 !nix.conf
 !nix-profile.sh
+!shell/
+!shell/bashrc

@@ -7,11 +7,12 @@ root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 docker run --rm -i --entrypoint sh \
   --tmpfs /home/coder:uid=1000,gid=1000,mode=0755 \
   --mount "type=bind,src=$root/tests/flake,dst=/tmp/fixture,readonly" \
+  --mount "type=bind,src=$root/tests/direnv.sh,dst=/tmp/test-direnv.sh,readonly" \
   "$image" -es <<'SMOKE'
     test "$(id -un)" = coder
     test "$(id -u)" = 1000
     sudo -n true
-    for tool in nix git curl bash tmux rg bwrap; do command -v "$tool"; done
+    for tool in nix git curl bash tmux rg bwrap direnv; do command -v "$tool"; done
     tmux -V
     rg --version
     bwrap --version
@@ -23,4 +24,7 @@ docker run --rm -i --entrypoint sh \
     test "$(cat result)" = flakes-work
     nix develop --command bash -c 'test "$WORKSPACE_DEV_SHELL" = ready && hello'
     bash -lic "nix --version"
+    bash -ic "declare -F _direnv_hook"
+    bash -lic "declare -F _direnv_hook"
+    bash /tmp/test-direnv.sh
 SMOKE

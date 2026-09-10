@@ -1,7 +1,7 @@
 # Coder + Nix workspace image
 
 Ubuntu 24.04 with a `coder` user (UID/GID 1000), passwordless sudo, single-user
-Nix 2.34.1, flakes, dev shells, tmux, ripgrep (`rg`), and bubblewrap (`bwrap`).
+Nix 2.34.1, flakes, dev shells, direnv, tmux, ripgrep (`rg`), and bubblewrap (`bwrap`).
 Also includes Git, SSH client, curl, unzip, a compiler toolchain, and the usual
 Linux tools used by Coder modules. Published for Linux amd64 and arm64 at:
 
@@ -95,7 +95,116 @@ bash tests/smoke.sh coder-nix:test
 
 The smoke test hides the image's home directory, overrides the entrypoint like
 Coder, checks tools and login shells, builds a real flake derivation, and runs a
-command inside a dev shell. It needs access to GitHub and the Nix binary cache.
+command inside a dev shell. It also checks Bash hooks and direnv approval, then
+launches a test process through direnv inside an already-running tmux server. It needs access to GitHub and the Nix binary cache.
 The fixture pins nixpkgs to a commit. Base packages receive updates on rebuild;
 Nix's architecture-specific tarballs are verified with pinned SHA-256 hashes.
 When upgrading Nix, update both its version and those hashes in `Dockerfile`.
+
+## direnv and Home Manager
+
+The image includes direnv and installs its interactive Bash hook in
+`/etc/bash.bashrc`, outside the mounted home. It works in both login and
+non-login Bash shells; no copying or replacing your dotfiles is required.
+`~/.local/bin` is also on PATH for user-installed tools such as Codex and its
+code-mode host.
+
+For a flake-backed project, create `.envrc` in the project directory:
+
+```sh
+use flake
+# For a named devShell instead: use flake .#my-shell
+```
+
+Review the file, then run `direnv allow .` once from that directory. Repeat
+approval after editing `.envrc`. Ignore `.direnv/` in the project's Git config.
+Direnv finds `.envrc` in the current directory or a parent; without one it runs
+commands with the ordinary environment. Base direnv supports `use flake`
+directly; flakes need a `devShells.<system>.default` (or the selected shell).
+
+For your preferred Home Manager setup, import
+[`home-manager/workspace.nix`](home-manager/workspace.nix) into your existing
+standalone Home Manager configuration for `coder`. Set that configuration's
+`home.username = "coder"`, `home.homeDirectory = "/home/coder"`, and retain its
+chosen `home.stateVersion`. The module enables nix-direnv caching, Bash/Zsh
+hooks, and a small Zsh setup inspired by
+[cfi2017/nixos-config](https://github.com/cfi2017/nixos-config): bira, Git helpers,
+autosuggestions, syntax highlighting, and directory shortcuts. Use a Home
+Manager release matching your nixpkgs release. Activate with your usual
+`home-manager switch --flake ...`; back up conflicting existing dotfiles before
+letting Home Manager manage them. Start `zsh` to use that shell. Bash remains
+the image's default for Coder startup compatibility.
+
+The optional module is not activated at image build time: it manages the actual
+persistent home. Its nix-direnv profile roots and cache require the same `/nix`
+persistence as other Nix profiles.
+
+## Launch Codex in the project's direnv environment
+
+Replace the `command` in your existing `coder_app.codex` with:
+
+```hcl
+command = <<-EOT
+  #!/bin/bash
+  set -euo pipefail
+  exec tmux new-session -A -s codex -c /home/coder/project \
+    "bash -lc 'exec direnv exec /home/coder/project codex --yolo'"
+EOT
+```
+
+`-c` sets the pane's working directory. The login Bash loads the tool PATH;
+**inside that pane**, `direnv exec` evaluates the approved project environment
+and then starts Codex with its exported variables and tools. The interactive
+prompt hook alone cannot handle this noninteractive launch. Wrapping tmux
+itself with direnv would also leave new panes dependent on an existing tmux
+server's environment.
+
+In your module's `base_config_toml`, explicitly inherit that environment for
+Codex subprocesses. Place this new table after the top-level `model_provider`
+and before the existing provider table:
+
+```toml
+model_provider = "ai_gateway"
+
+[shell_environment_policy]
+inherit = "all"
+
+[model_providers.ai_gateway]
+# Keep your existing provider settings here.
+```
+
+See the [official Codex configuration reference](https://developers.openai.com/codex/config-reference/)
+for `shell_environment_policy.inherit`. Other configured environment filters
+can still remove individual variables. Your existing `workdir`, gateway
+configuration, and `post_install_script` can remain as supplied. This wrapper
+applies to this custom app; other launch paths need their own direnv wrapper.
+
+Before first launch, open a workspace terminal, `cd /home/coder/project`, review
+`.envrc`, and run `direnv allow .`. Verify with:
+
+```sh
+direnv exec /home/coder/project bash -c 'command -v codex; command -v your-project-tool'
+```
+
+Replace `your-project-tool` with a package provided by your dev shell. If an old
+`codex` tmux session exists, exit Codex in that session and reopen the app so it
+creates a new process. `-A` attaches to an existing process without refreshing
+its environment. Similarly, restart after changing the dev shell or `.envrc`.
+Use distinct tmux session names for different projects.
+
+Direnv passes exported environment variables, not interactive shell aliases or
+functions. This selects the environment at Codex launch; it does not
+automatically reevaluate direnv every time Codex changes directories, and a
+child login shell can alter inherited PATH. For repositories with nested or
+changing environments, add this instruction to the project's `AGENTS.md`:
+
+```text
+Run project build, test, and development commands through
+`direnv exec /home/coder/project <command> ...` so each command loads the
+project's current approved environment. For a subproject with its own .envrc,
+use that subproject's directory instead. Do not automatically approve .envrc.
+```
+
+For example: `direnv exec /home/coder/project bash -c 'npm test'`. For shell
+pipelines, put the entire pipeline inside that `bash -c` command so all parts
+use the project environment.

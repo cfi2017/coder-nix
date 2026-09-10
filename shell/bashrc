@@ -1,0 +1,6 @@
+# shellcheck shell=bash
+# System-wide interactive Bash integration, including empty/persistent homes.
+# Home Manager or user dotfiles may also install the hook; avoid adding it twice.
+if command -v direnv >/dev/null 2>&1 && ! declare -F _direnv_hook >/dev/null; then
+  eval "$(direnv hook bash)"
+fi
