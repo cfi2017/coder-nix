@@ -4,8 +4,9 @@ image=${1:-coder-nix:test}
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 # A tmpfs hides every file originally installed in HOME. Override the
 # entrypoint exactly as Coder does; Nix must work without shell startup files.
+# Docker tmpfs defaults to noexec; workspace homes must allow local executables.
 docker run --rm -i --entrypoint sh \
-  --tmpfs /home/coder:uid=1000,gid=1000,mode=0755 \
+  --tmpfs /home/coder:exec,uid=1000,gid=1000,mode=0755 \
   --mount "type=bind,src=$root/tests/flake,dst=/tmp/fixture,readonly" \
   --mount "type=bind,src=$root/tests/direnv.sh,dst=/tmp/test-direnv.sh,readonly" \
   "$image" -es <<'SMOKE'

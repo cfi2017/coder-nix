@@ -5,8 +5,17 @@ set -euo pipefail
 # Model an agent with stale environment already stored in a tmux server.
 # Use a private socket so this test cannot affect workspace sessions.
 socket="direnv-test-$$"
-trap 'tmux -L "$socket" kill-server 2>/dev/null || true' EXIT
-WORKSPACE_DEV_SHELL=stale tmux -L "$socket" -f /dev/null new-session -d -s stale 'sleep 120'
+cleanup() {
+  status=$?
+  if ((status != 0)); then
+    echo "direnv/tmux test failed (exit $status)" >&2
+    tmux -L "$socket" list-panes -a -F '#{session_name}: dead=#{pane_dead} status=#{pane_dead_status} command=#{pane_current_command}' >&2 || true
+    tmux -L "$socket" capture-pane -p -S - -t codex >&2 || true
+  fi
+  tmux -L "$socket" kill-server 2>/dev/null || true
+}
+trap cleanup EXIT
+WORKSPACE_DEV_SHELL=stale tmux -L "$socket" -f /dev/null new-session -d -s stale 'sleep infinity'
 
 printf 'use flake\n' > .envrc
 # Unapproved project code must not run, even when launched noninteractively.
