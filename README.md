@@ -25,6 +25,12 @@ repositories; the workflow does not change visibility. Organization policy must
 allow public packages. Verify anonymous access with an unauthenticated pull.
 The image is not available until the workflow has run.
 
+## Dependency updates
+
+The Nix installer version and its two architecture checksums remain manual:
+update all three values in `Dockerfile` together. Unpinned Ubuntu packages
+receive updates through the existing weekly image rebuild.
+
 ## Coder template
 
 Import `templates/docker/` as a Coder template, or adapt the
@@ -64,7 +70,15 @@ nix build
 nix develop
 # Or enter an ad hoc shell:
 nix shell nixpkgs#hello
+# Legacy nix-shell also works
+nix-shell -p nodejs
 ```
+
+Legacy commands resolve `<nixpkgs>` through a pinned flake reference in
+`/etc/nix/nix.conf`, without per-user channels or home-directory setup. This
+revision matches the smoke-test fixture; update both together. The first use
+requires network access to fetch nixpkgs. An explicit `NIX_PATH` or `-I` overrides
+this default. Flake commands continue to use their own inputs or registry.
 
 ## Isolation and bubblewrap
 

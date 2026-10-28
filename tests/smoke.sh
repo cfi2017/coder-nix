@@ -24,6 +24,9 @@ docker run --rm -i --entrypoint sh \
     nix build --print-build-logs
     test "$(cat result)" = flakes-work
     nix develop --command bash -c 'test "$WORKSPACE_DEV_SHELL" = ready && hello'
+    nix-shell -p hello --run 'hello'
+    nix-instantiate --eval --strict --expr '(import <nixpkgs> {}).nodejs.pname'
+    bash -lic "nix-shell -p hello --run hello"
     bash -lic "nix --version"
     bash -ic "declare -F _direnv_hook"
     bash -lic "declare -F _direnv_hook"

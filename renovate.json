@@ -1,0 +1,25 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "ignorePaths": [],
+  "automerge": false,
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^nix\\.conf$/", "/^tests/flake/flake\\.nix$/"],
+      "matchStrings": ["github:NixOS/nixpkgs/(?<currentDigest>[a-f0-9]{40})"],
+      "currentValueTemplate": "nixos-unstable",
+      "depNameTemplate": "NixOS/nixpkgs",
+      "packageNameTemplate": "https://github.com/NixOS/nixpkgs",
+      "datasourceTemplate": "git-refs",
+      "versioningTemplate": "git"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchDepNames": ["NixOS/nixpkgs"],
+      "groupName": "nixpkgs",
+      "schedule": ["before 6am on monday"]
+    }
+  ]
+}
