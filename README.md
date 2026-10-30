@@ -222,3 +222,53 @@ use that subproject's directory instead. Do not automatically approve .envrc.
 For example: `direnv exec /home/coder/project bash -c 'npm test'`. For shell
 pipelines, put the entire pipeline inside that `bash -c` command so all parts
 use the project environment.
+
+## REA reverse-engineering image
+
+The optional `rea` Docker target extends the same Nix workspace. CI publishes it
+as `ghcr.io/cfi2017/coder-nix-rea` with the same tags and architectures as the
+ordinary image. The default Docker build still produces the ordinary workspace.
+
+```sh
+docker build --target rea -t coder-nix-rea:test .
+bash tests/smoke.sh coder-nix-rea:test
+bash tests/rea.sh coder-nix-rea:test
+```
+
+Set the template's `workspace_image` to `ghcr.io/cfi2017/coder-nix-rea:latest`.
+Use fresh home and Nix volumes when switching an existing workspace image.
+The included template runs `rea-setup-agents` at startup, after mounting home,
+registering the installed stdio MCP server and matching workflow instructions
+for Codex and Claude Code. Existing settings are preserved by REA's setup.
+Restart agents after registration. For other templates, add `rea-setup-agents`
+to the agent startup script; no image entrypoint is required. Registration errors
+are reported by the startup script rather than silently ignored.
+
+To select other supported clients, run, for example:
+
+```sh
+rea-setup-agents --client cursor --client opencode
+rea doctor --provider ghidra --json
+rea analyze /absolute/path/to/binary --provider ghidra --json
+```
+
+[REA](https://github.com/morluto/rea) is installed globally at `/opt/rea`, outside
+persistent home, pinned to 6.8.0 (`REA_VERSION` build argument). Nix provides
+Node.js 22, headless Ghidra and JDK 21, JADX, Apktool, binwalk, tshark,
+mitmproxy, Frida tools, radare2, GDB, strace/ltrace, binutils, file, patchelf,
+7zip, WABT, adb, and Python with pwntools, pefile, Capstone and pyelftools.
+The separate nixpkgs revision lives in `rea/tools.nix`; tools are rooted under
+`/opt/rea-tools` and `/nix/var/nix/gcroots/workspace-rea`. Ghidra is the default
+native backend. Node and the REA entry script are registered from their installed
+paths, so agent launches do not download REA through npx.
+
+These are the Linux tools; proprietary Hopper/IDA, Apple-only tools, attached
+devices, GUI sessions, and browser runtimes are not bundled. Features requiring
+those need a suitable host and additional configuration. Debugging other
+processes, device access, and live capture depend on Docker/host permissions;
+the template keeps its existing unprivileged container configuration. JADX's
+optional MCP bridge requires separate configuration; the JADX CLI is included.
+See the [upstream installation guide](https://github.com/morluto/rea/blob/main/docs/installation.md)
+for provider-specific setup. CI checks tool availability, Ghidra doctor, agent
+registration in an empty home, MCP initialization and native decompilation; it does not exercise every
+provider or a running Coder deployment.

@@ -23,6 +23,9 @@ resource "coder_agent" "main" {
   os             = "linux"
   startup_script = <<-EOT
     set -eu
+    if command -v rea-setup-agents >/dev/null 2>&1; then
+      rea-setup-agents
+    fi
     if [ ! -f "$HOME/.init_done" ]; then
       cp -rn /etc/skel/. "$HOME/"
       touch "$HOME/.init_done"

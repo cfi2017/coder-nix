@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Run as the workspace user after persistent HOME is mounted.
+set -euo pipefail
+if (( $# == 0 )); then
+  set -- --client codex --client claude_code
+fi
+exec rea setup --yes "$@" --json

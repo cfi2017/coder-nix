@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM ubuntu:24.04
+FROM ubuntu:24.04 AS base
 
 ARG TARGETARCH
 ARG NIX_VERSION=2.34.1
@@ -54,3 +54,24 @@ ENV USER=coder \
 USER coder
 WORKDIR /home/coder
 CMD ["sleep", "infinity"]
+
+# Optional reverse-engineering workspace. Keep the ordinary image as default.
+FROM base AS rea
+USER root
+COPY rea /etc/coder/rea
+RUN chmod +x /etc/coder/rea/setup-agents \
+    && ln -s /etc/coder/rea/setup-agents /usr/local/bin/rea-setup-agents
+USER coder
+RUN nix-build /etc/coder/rea/tools.nix --out-link /tmp/rea-tools \
+    && sudo ln -s "$(readlink -f /tmp/rea-tools)" /opt/rea-tools \
+    && ln -s /opt/rea-tools /nix/var/nix/gcroots/workspace-rea \
+    && rm /tmp/rea-tools
+ENV PATH=/opt/rea/bin:/opt/rea-tools/bin:/home/coder/.local/bin:/home/coder/.nix-profile/bin:/home/coder/.local/state/nix/profile/bin:/opt/nix/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    REA_ANALYSIS_PROVIDER=ghidra
+ARG REA_VERSION=6.8.0
+USER root
+RUN npm install --global --prefix /opt/rea "rea-agents@${REA_VERSION}" \
+    && npm cache clean --force
+USER coder
+
+FROM base AS workspace
